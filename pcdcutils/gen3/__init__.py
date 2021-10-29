@@ -1,7 +1,6 @@
 #
 # pcdcutils.gen3
 #
-from os import environ
 from pcdcutils.errors import Unauthorized
 from pcdcutils.signature import SignatureManager
 
@@ -36,7 +35,7 @@ class Gen3RequestManager(object):
         return None
             
 
-    def valid_gen3_signature(self, payload=None):
+    def valid_gen3_signature(self, payload=None, config=None):
         '''
         Validates an authorized Gen3 service request against auth_gen3_services
         Validates a signature header for a signed request
@@ -46,8 +45,8 @@ class Gen3RequestManager(object):
         service_name = self.get_gen3_service_header()
         # get the signed post data
 
-        if service_name:
-            public_key_path = environ.get(service_name.upper() + '_PUBLIC_KEY', None)
+        if service_name and config:
+            public_key_path = config.get(service_name.upper() + '_PUBLIC_KEY', None)
 
         if not public_key_path:
             raise Unauthorized(f"'{service_name}' is not configured to send requests to this service")
