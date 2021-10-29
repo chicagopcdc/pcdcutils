@@ -15,9 +15,9 @@ from pcdcutils.errors import NoKeyError, KeyPathInvalidError, Unauthorized
 
 class SignatureManager(object):
 
-    # key = None
-    # key_path = None
-    # signature = None
+    key = None
+    key_path = None
+    signature = None
 
     def __init__(self, key_path=None, key=None):
         if key:
@@ -68,7 +68,13 @@ class SignatureManager(object):
         if self.key is None:
             raise NoKeyError("key not loaded")
 
-        hash = SHA256.new(payload.encode('utf-8'))
+        payload_encoded = None
+        if isinstance(payload, str):
+            payload_encoded = payload.encode('utf-8')
+        elif isinstance(payload, bytes):
+            payload_encoded = payload
+
+        hash = SHA256.new(payload_encoded)
         self.signature = pkcs1_15.new(self.key).sign(hash)
         hexed_signature = binascii.hexlify(self.signature)
         return hexed_signature
@@ -118,10 +124,16 @@ class SignatureManager(object):
         if not self.signature:
             self.get_signature(headers)
 
+        payload_encoded = None
+        if isinstance(payload, str):
+            payload_encoded = payload.encode('utf-8')
+        elif isinstance(payload, bytes):
+            payload_encoded = payload
+
         if not self.key or not self.signature or not payload:
             raise Unauthorized("verify_signature missing key, signature, or payload")
         try:
-            hash = SHA256.new(payload)
+            hash = SHA256.new(payload_encoded)
             pkcs1_15.new(self.key).verify(hash, self.signature)
             return True
         except ValueError as e:
