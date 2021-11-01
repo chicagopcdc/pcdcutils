@@ -43,7 +43,7 @@ def get_message():
 
 # Mock app.config
 config = {
-  'AMANUENSIS_PUBLIC_KEY': public_key_path
+  'AMANUENSIS_PUBLIC_KEY_PATH': public_key_path
 }
 
 # ------ pcdcutils.signature ------
@@ -62,6 +62,11 @@ headers['Gen3-Service'] = b'amanuensis'
 # r = requests.post(url=url, headers=headers, data=message)
 # print("output: ")
 # print(r)
+
+# Pre-load the public key
+# load amanuensis public key for cross-service access
+key_path = config.get("AMANUENSIS_PUBLIC_KEY_PATH", None)
+config["AMANUENSIS_PUBLIC_KEY"] =  SignatureManager(key_path=key_path).get_key()
 
 # ------ pcdcutils.gen3 ------
 # validate the message payload

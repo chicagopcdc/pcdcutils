@@ -2,7 +2,7 @@
 # pcdcutils.signature
 #
 
-import os
+from os import path
 import binascii
 from Crypto.PublicKey import RSA
 from Crypto.Signature import pkcs1_15
@@ -11,7 +11,7 @@ from pcdcutils.errors import NoKeyError, KeyPathInvalidError, Unauthorized
 
 
 
-# amanuensis passes os.environ.get("PRIVATE_KEY_PATH", None) as private_key_path
+# amanuensis passes config("PRIVATE_KEY_PATH", None) as private_key_path
 
 class SignatureManager(object):
 
@@ -25,8 +25,7 @@ class SignatureManager(object):
 
         if key_path:
             self.key_path = key_path
-
-        self.load_key()
+            self.load_key()
 
 
     def load_key(self):
@@ -39,7 +38,7 @@ class SignatureManager(object):
 
         elif self.key_path:
             # load the key from the path
-            if not os.path.exists(self.key_path):
+            if not path.exists(self.key_path):
                 raise KeyPathInvalidError("key_path is not found or invalid")
 
             try:
@@ -124,14 +123,15 @@ class SignatureManager(object):
         if not self.signature:
             self.get_signature(headers)
 
+        if not self.key or not self.signature or not payload:
+            raise Unauthorized("verify_signature missing key, signature, or payload")
+
         payload_encoded = None
         if isinstance(payload, str):
             payload_encoded = payload.encode('utf-8')
         elif isinstance(payload, bytes):
             payload_encoded = payload
 
-        if not self.key or not self.signature or not payload:
-            raise Unauthorized("verify_signature missing key, signature, or payload")
         try:
             hash = SHA256.new(payload_encoded)
             pkcs1_15.new(self.key).verify(hash, self.signature)

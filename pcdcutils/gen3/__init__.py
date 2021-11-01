@@ -7,7 +7,7 @@ from pcdcutils.signature import SignatureManager
 
 class Gen3RequestManager(object):
 
-    def __init__(self, headers):
+    def __init__(self, headers=None):
         if headers and isinstance(headers, dict):
             self.headers = headers
 
@@ -41,16 +41,17 @@ class Gen3RequestManager(object):
         Validates a signature header for a signed request
         returns bool if valid or not
         '''
-        public_key_path = ''
+        public_key = ''
         service_name = self.get_gen3_service_header()
         # get the signed post data
 
         if service_name and config:
-            public_key_path = config.get(service_name.upper() + '_PUBLIC_KEY', None)
+            public_key = config.get(service_name.upper() + '_PUBLIC_KEY', None)
 
-        if not public_key_path:
+        if not public_key:
             raise Unauthorized(f"'{service_name}' is not configured to send requests to this service")
         
-        sm = SignatureManager(key_path=public_key_path)
+        # key should have been loaded at app_config()
+        sm = SignatureManager(key=public_key)
 
-        return  sm.verify_signature(payload=payload, headers=self.headers)
+        return sm.verify_signature(payload=payload, headers=self.headers)
