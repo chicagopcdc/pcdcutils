@@ -35,7 +35,7 @@ class Gen3RequestManager(object):
         return None
             
 
-    def valid_gen3_signature(self, payload=None, config=None):
+    def valid_gen3_signature(self, payload='', config=None):
         '''
         Validates an authorized Gen3 service request against auth_gen3_services
         Validates a signature header for a signed request

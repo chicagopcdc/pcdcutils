@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "pcdcutils"
-version = "0.1.2"
+version = "0.1.3"
 description = "PCDC Utilities for Python"
 authors = ["Debra Venckus <dvenckus@uchicago.edu>"]
 

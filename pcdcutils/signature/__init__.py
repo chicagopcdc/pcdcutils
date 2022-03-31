@@ -96,7 +96,7 @@ class SignatureManager(object):
         Raises:
             - Unauthorized, if header is missing or not in the correct format
         '''
-        if headers:
+        if not headers:
             raise Unauthorized("missing headers")
 
         header = headers.get("Signature", None)
@@ -116,7 +116,7 @@ class SignatureManager(object):
         return self.signature
 
 
-    def verify_signature(self, payload=None, headers=None):
+    def verify_signature(self, payload='', headers=None):
         """
         Check if the signature header is valid
         """
