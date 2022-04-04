@@ -8,7 +8,7 @@ from pcdcutils.signature import SignatureManager
 class Gen3RequestManager(object):
 
     def __init__(self, headers=None):
-        if headers and isinstance(headers, dict):
+        if headers:
             self.headers = headers
 
 
@@ -29,13 +29,13 @@ class Gen3RequestManager(object):
         '''
         header_utf8 = self.headers.get("Gen3-Service", '')
         if header_utf8:
-            header = header_utf8.decode('utf-8')
+            header = header_utf8 # .decode('utf-8')
             return header
 
         return None
             
 
-    def valid_gen3_signature(self, payload=None, config=None):
+    def valid_gen3_signature(self, payload='', config=None):
         '''
         Validates an authorized Gen3 service request against auth_gen3_services
         Validates a signature header for a signed request

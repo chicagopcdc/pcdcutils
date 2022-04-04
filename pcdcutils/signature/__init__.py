@@ -85,7 +85,7 @@ class SignatureManager(object):
         returns bool, Signature header exists or not
         '''
         header = None
-        if isinstance(headers, dict):
+        if headers:
             header = headers.get("Signature", '')
         return bool(header)
 
@@ -96,15 +96,15 @@ class SignatureManager(object):
         Raises:
             - Unauthorized, if header is missing or not in the correct format
         '''
-        if not isinstance(headers, dict):
-            raise Unauthorized("missing header")
+        if not headers:
+            raise Unauthorized("missing headers")
 
         header = headers.get("Signature", None)
         if not header:
             raise Unauthorized("missing signature header")
 
         try:
-            signature_string = header.decode('utf-8')
+            signature_string = header #.decode('utf-8')
             prefix, hexed_signature = signature_string.split(" ")
             self.signature = binascii.unhexlify(hexed_signature)
         except ValueError:
@@ -116,7 +116,7 @@ class SignatureManager(object):
         return self.signature
 
 
-    def verify_signature(self, payload=None, headers=None):
+    def verify_signature(self, payload='', headers=None):
         """
         Check if the signature header is valid
         """
