@@ -5,9 +5,9 @@ description = "PCDC Utilities for Python"
 authors = ["Debra Venckus <dvenckus@uchicago.edu>"]
 
 [tool.poetry.dependencies]
-python = "^3.6"
+python = python = ">=3.9,<4.0.0"
 cdiserrors = "<2.0.0"
-pycryptodome = "3.9.8"
+pycryptodome = "3.19.0"
 
 [tool.poetry.dev-dependencies]
 
