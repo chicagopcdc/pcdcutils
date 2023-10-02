@@ -1,11 +1,11 @@
 [tool.poetry]
 name = "pcdcutils"
-version = "0.1.2"
+version = "0.1.3"
 description = "PCDC Utilities for Python"
 authors = ["Debra Venckus <dvenckus@uchicago.edu>"]
 
 [tool.poetry.dependencies]
-python = ">=3.9,<4.0.0"
+python = ">=3.9"
 cdiserrors = "<2.0.0"
 pycryptodome = "3.19.0"
 
