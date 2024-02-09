@@ -17,7 +17,7 @@ class FenceClientManager(object):
 
 
     def is_valid(self):
-        if not self.fence_url or not self.client_id or not self.client_secret:
+        if not self.base_url or not self.client_id or not self.client_secret:
             return False
 
         # TODO ping the fence base URL to make use it is correct and reacheable
@@ -27,7 +27,7 @@ class FenceClientManager(object):
     def authenticate(self):
         if self.is_valid():
             self.auth = Gen3Auth(
-                endpoint="https://portal-dev.pedscommons.org",
+                endpoint=self.base_url,
                 client_credentials=(self.client_id, self.client_secret),
                 client_scopes = self.scopes
             )
