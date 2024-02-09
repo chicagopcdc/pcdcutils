@@ -42,6 +42,8 @@ class FenceClientManager(object):
 
 
     def get_auth_token(self):
+        if self.auth is None:
+            return ""
         return self.auth.get_access_token()
         # url = self.base_url + "user/oauth2/token?grant_type=client_credentials"
         # 
