@@ -5,6 +5,14 @@
 from gen3.auth import Gen3Auth
 
 
+### USAGE
+# client_credential = FenceClientManager(
+#         fence_url=config.PCDC_COMMON_BASENAME, 
+#         client_id={FENCE_CLIENT_ID}, 
+#         client_secret={FENCE_CLIENT_SECRET})
+# client_credential.authenticate()
+# client_credential.get_auth_token()
+
 class FenceClientManager(object):
 
     def __init__(self, base_url=None, client_id=None, client_secret=None):
