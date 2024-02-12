@@ -2,7 +2,7 @@
 # import base64
 # import urllib.parse
 
-from gen3.auth import Gen3Auth
+from gen3.auth import Gen3Auth, Gen3AuthError
 
 
 ### USAGE
@@ -38,11 +38,17 @@ class FenceClientManager(object):
 
     def authenticate(self):
         if self.is_valid():
-            self.auth = Gen3Auth(
-                endpoint=self.base_url,
-                client_credentials=(self.client_id, self.client_secret),
-                client_scopes = self.scopes
-            )
+            try:
+                self.auth = Gen3Auth(
+                    endpoint=self.base_url,
+                    client_credentials=(self.client_id, self.client_secret),
+                    client_scopes = self.scopes
+                )
+            except Gen3AuthError as err:
+                logger.error(f"AUTH ERROR: {err.message}")
+
+            
+
 
 
     def get_auth_token(self):
