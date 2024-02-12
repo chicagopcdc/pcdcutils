@@ -2,6 +2,8 @@
 # import base64
 # import urllib.parse
 
+import json
+
 from gen3.auth import Gen3Auth, Gen3AuthError
 
 
@@ -45,9 +47,8 @@ class FenceClientManager(object):
                     client_scopes = self.scopes
                 )
             except Gen3AuthError as err:
-                print(err)
-                print("LUCAAAAAAAAAA")
-                print(f"AUTH ERROR: {err["error"]}")
+                msg = json.loads(err)
+                print(f"AUTH ERROR: {msg["error"]}")
 
             
 
