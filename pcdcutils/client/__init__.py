@@ -2,6 +2,10 @@
 # import base64
 # import urllib.parse
 
+import errno
+import os
+import signal
+import functools
 import json
 
 from gen3.auth import Gen3Auth, Gen3AuthError
@@ -14,6 +18,31 @@ from gen3.auth import Gen3Auth, Gen3AuthError
 #         client_secret={FENCE_CLIENT_SECRET})
 # client_credential.authenticate()
 # client_credential.get_auth_token()
+
+class TimeoutError(Exception):
+    pass
+
+
+def timeout(seconds=10, error_message=os.strerror(errno.ETIME)):
+    def decorator(func):
+        def _handle_timeout(signum, frame):
+            raise TimeoutError(error_message)
+
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            signal.signal(signal.SIGALRM, _handle_timeout)
+            signal.alarm(seconds)
+            try:
+                result = func(*args, **kwargs)
+            finally:
+                signal.alarm(0)
+            return result
+
+        return wrapper
+
+    return decorator
+
+
 
 class FenceClientManager(object):
 
@@ -38,6 +67,7 @@ class FenceClientManager(object):
         return True if self.auth else False
 
 
+    @timeout(2)
     def authenticate(self):
         if self.is_valid():
             try:
@@ -46,12 +76,11 @@ class FenceClientManager(object):
                     client_credentials=(self.client_id, self.client_secret),
                     client_scopes = self.scopes
                 )
+            except TimeoutError:
+                # TODO send notification to 
+                logger.error(f"TIMEOUT: Connection with client_credential to {config.PCDC_COMMON_BASENAME}/user failed.")
             except Gen3AuthError as err:
                 print(f"AUTH ERROR: {err}")
-                print(self.auth)
-
-            
-
 
 
     def get_auth_token(self):
@@ -82,4 +111,6 @@ class FenceClientManager(object):
         #     print("ERROR!")
         #     print(response.text)
         # return None
+
+
 
