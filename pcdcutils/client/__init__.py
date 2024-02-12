@@ -32,7 +32,7 @@ class FenceClientManager(object):
 
         return True
 
-    def is_authenticated(self)
+    def is_authenticated(self):
         return True is self.auth else False
 
 
