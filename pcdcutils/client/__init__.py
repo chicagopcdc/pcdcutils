@@ -33,7 +33,7 @@ class FenceClientManager(object):
         return True
 
     def is_authenticated(self):
-        return True is self.auth else False
+        return True if self.auth else False
 
 
     def authenticate(self):
