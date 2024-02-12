@@ -32,6 +32,10 @@ class FenceClientManager(object):
 
         return True
 
+    def is_authenticated(self)
+        return True is self.auth else False
+
+
     def authenticate(self):
         if self.is_valid():
             self.auth = Gen3Auth(
