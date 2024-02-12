@@ -13,7 +13,7 @@ from gen3.auth import Gen3Auth, Gen3AuthError
 
 ### USAGE
 # client_credential = FenceClientManager(
-#         fence_url=config.PCDC_COMMON_BASENAME, 
+#         fence_url={PCDC_COMMON_BASENAME}, 
 #         client_id={FENCE_CLIENT_ID}, 
 #         client_secret={FENCE_CLIENT_SECRET})
 # client_credential.authenticate()
