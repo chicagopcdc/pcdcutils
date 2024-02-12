@@ -45,7 +45,8 @@ class FenceClientManager(object):
                     client_scopes = self.scopes
                 )
             except Gen3AuthError as err:
-                print(f"AUTH ERROR: {err.err_msg}")
+                print(err)
+                print(f"AUTH ERROR: {err.message}")
 
             
 
