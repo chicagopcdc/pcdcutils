@@ -92,30 +92,7 @@ class FenceClientManager(object):
             return self.auth.get_access_token()
 
         return ""
-        # url = self.base_url + "user/oauth2/token?grant_type=client_credentials"
-        # 
-        # #url encode the value
-        # payload = "scope=" + urllib.parse.quote(self.scopes)
 
-        # auth_str = client_id + ":" + client_secret
-        # #base64 encode the credentials
-        # auth_str_bytes = auth_str.encode("ascii") 
-        # auth_base64_bytes = base64.b64encode(auth_str_bytes) 
-        # auth_base64_string = auth_base64_bytes.decode("ascii") 
-
-        # headers = {
-        #   'Content-Type': 'application/x-www-form-urlencoded',
-        #   'Authorization': 'Basic ' + auth_base64_string,
-        # }
-
-        # response = requests.request("POST", url, headers=headers, data=payload)
-        # if response.status_code == 200:
-        #     json_response = response.json()
-        #     return json_response["access_token"]
-        # else:
-        #     print("ERROR!")
-        #     print(response.text)
-        # return None
 
 
 
