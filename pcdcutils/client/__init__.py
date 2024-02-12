@@ -67,6 +67,7 @@ class FenceClientManager(object):
         return True if self.auth else False
 
 
+    # @timeout(30, os.strerror(errno.ETIMEDOUT))
     @timeout(2)
     def authenticate(self):
         if self.is_valid():
@@ -84,9 +85,13 @@ class FenceClientManager(object):
 
 
     def get_auth_token(self):
-        if self.auth is None:
-            return ""
-        return self.auth.get_access_token()
+        if not self.is_authenticated:
+            self.authenticate()
+
+        if self.is_authenticated():
+            return self.auth.get_access_token()
+
+        return ""
         # url = self.base_url + "user/oauth2/token?grant_type=client_credentials"
         # 
         # #url encode the value
