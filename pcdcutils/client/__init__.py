@@ -80,6 +80,7 @@ class FenceClientManager(object):
                 print(f"AUTH ERROR: {err}")
 
 
+    @timeout(2)
     def get_auth_token(self):
         if not self.is_authenticated:
             self.authenticate()
