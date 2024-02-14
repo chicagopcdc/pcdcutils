@@ -107,7 +107,7 @@ class GuppyManager(object):
         self.timeout = timeout
 
 
-    def graphql_query(query_string, variables):
+    def graphql_query(self, query_string, variables):
         # query_string example "query ($filter: JSON){\n  _aggregation{\n    subject(filter: $filter, accessibility: all){\n      _totalCount\n    }\n  }\n}"
 
         headers = {}
@@ -148,7 +148,7 @@ class GuppyManager(object):
 
 
 
-    def download_query(type, fields, filters, sort, accessibility="accessible"):
+    def download_query(self, type, fields, filters, sort, accessibility="accessible"):
         # query_string = "{ my_index { my_field } }"
         queryBody = { "type": type }
         if fields:
