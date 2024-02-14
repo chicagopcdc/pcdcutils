@@ -77,7 +77,7 @@ class FenceClientManager(object):
                 # TODO send notification to 
                 print(f"TIMEOUT: Connection with client_credential to {self.base_url}/user failed.")
                 if raise_exception:
-                    raise TimeoutError()
+                    raise TimeoutError("aaaa")
             except Gen3AuthError as err:
                 # TODO send notification to 
                 print(f"AUTH ERROR: {err}")
