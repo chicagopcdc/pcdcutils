@@ -65,7 +65,7 @@ class FenceClientManager(object):
 
     # @timeout(30, os.strerror(errno.ETIMEDOUT))
     @timeout(2)
-    def authenticate(self):
+    def authenticate(self, raise_exception=False):
         if self.is_valid():
             try:
                 self.auth = Gen3Auth(
@@ -76,6 +76,8 @@ class FenceClientManager(object):
             except TimeoutError:
                 # TODO send notification to 
                 print(f"TIMEOUT: Connection with client_credential to {self.base_url}/user failed.")
+                if raise_exception:
+                    raise TimeoutError()
             except Gen3AuthError as err:
                 # TODO send notification to 
                 print(f"AUTH ERROR: {err}")
@@ -84,7 +86,7 @@ class FenceClientManager(object):
     @timeout(2)
     def get_auth_token(self):
         if not self.is_authenticated:
-            self.authenticate()
+            self.authenticate(raise_exception=True)
 
         if self.is_authenticated():
             return self.auth.get_access_token()
