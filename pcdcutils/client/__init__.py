@@ -64,7 +64,7 @@ class FenceClientManager(object):
 
 
     # @timeout(30, os.strerror(errno.ETIMEDOUT))
-    @timeout(self.timeout)
+    @timeout(2)
     def authenticate(self):
         if self.is_valid():
             try:
