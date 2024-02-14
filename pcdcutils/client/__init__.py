@@ -170,11 +170,6 @@ class GuppyManager(object):
                 headers=headers,
                 timeout=self.timeout
             )
-
-            print("LUCAAAAAAAA")
-            print(response.headers)
-        
-        
             response.raise_for_status()
         except requests.exceptions.Timeout: #except requests.Timeout:
             # Maybe set up for a retry, or continue in a retry loop
