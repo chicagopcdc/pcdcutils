@@ -107,6 +107,7 @@ class GuppyManager(object):
         self.timeout = timeout
 
 
+    #TODO bring the logic to build the filter / variables here.
     def graphql_query(self, query_string, variables):
         # query_string example "query ($filter: JSON){\n  _aggregation{\n    subject(filter: $filter, accessibility: all){\n      _totalCount\n    }\n  }\n}"
 
@@ -121,16 +122,13 @@ class GuppyManager(object):
                 headers=headers,
                 timeout=self.timeout
             )
-
-            print("LUCAAAAAAAA")
-            print(response.headers)
-
             response.raise_for_status()
         except requests.exceptions.Timeout: #except requests.Timeout:
             # Maybe set up for a retry, or continue in a retry loop
             # TODO send notification to 
             print(f"TIMEOUT: Connection with client_credential to {self.graphql_endpoint} failed.")
-            return {}
+            #TODO raise connection error instead and return the info
+            raise TimeoutError()
         except requests.HTTPError as exception:
             print(
                 "Error: status code {}; details:\n{}".format(
@@ -146,17 +144,13 @@ class GuppyManager(object):
             raise
 
 
-
-
     def download_query(self, type, fields, filters, sort, accessibility="accessible"):
         # query_string = "{ my_index { my_field } }"
         queryBody = { "type": type }
         if fields:
-            if "honest_broker_subject_id" not in fields:
-                fields.append("honest_broker_subject_id")
             queryBody["fields"] = fields
         if filters:
-            queryBody["filter"] = filters["filter"] # getGQLFilter(filter);
+            queryBody["filter"] = filters # getGQLFilter(filter);
         if sort:
             queryBody["sort"] = sort 
         if accessibility:
@@ -166,21 +160,28 @@ class GuppyManager(object):
 
         # headers = {'Content-Type': 'application/json'}
         headers = {}
-        headers['Authorization'] = 'bearer ' + self.access_token
+        if self.access_token:
+            headers['Authorization'] = 'bearer ' + self.access_token
 
-
-        response = requests.post(
-            self.download_endpoint,
-            json=body,
-            headers=headers,
-            timeout=self.timeout
-        )
-
-        print("LUCAAAAAAAA")
-        print(response.headers)
-        
         try:
+            response = requests.post(
+                self.download_endpoint,
+                json=body,
+                headers=headers,
+                timeout=self.timeout
+            )
+
+            print("LUCAAAAAAAA")
+            print(response.headers)
+        
+        
             response.raise_for_status()
+        except requests.exceptions.Timeout: #except requests.Timeout:
+            # Maybe set up for a retry, or continue in a retry loop
+            # TODO send notification to 
+            print(f"TIMEOUT: Connection with client_credential to {self.download_endpoint} failed.")
+            #TODO raise connection error instead and return the info
+            raise TimeoutError()
         except requests.HTTPError as exception:
             print(
                 "Error: status code {}; details:\n{}".format(
@@ -191,6 +192,40 @@ class GuppyManager(object):
 
         try:
             return response.json()
+        except Exception:
+            print(f"Did not receive JSON: {response.text}")
+            raise
+
+
+    def data_version(self):
+        headers = {}
+        if self.access_token:
+            headers['Authorization'] = 'bearer ' + self.access_token
+
+        try:
+            response = requests.get(
+                self.data_version_endpoint,
+                headers=headers,
+                timeout=self.timeout
+            )
+            response.raise_for_status()
+        except requests.exceptions.Timeout: #except requests.Timeout:
+            # Maybe set up for a retry, or continue in a retry loop
+            # TODO send notification to 
+            print(f"TIMEOUT: Connection with client_credential to {self.data_version_endpoint} failed.")
+            #TODO raise connection error instead and return the info
+            raise TimeoutError()
+        except requests.HTTPError as exception:
+            print(
+                "Error: status code {}; details:\n{}".format(
+                    response.status_code, response.text
+                )
+            )
+            raise
+
+        try:
+            # return response.json()
+            return response.text
         except Exception:
             print(f"Did not receive JSON: {response.text}")
             raise
