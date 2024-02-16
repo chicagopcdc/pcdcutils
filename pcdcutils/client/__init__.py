@@ -1,23 +1,12 @@
-# import requests
-# import base64
-# import urllib.parse
-
 import errno
 import os
 import signal
 import functools
 import json
+import requests
 
 from gen3.auth import Gen3Auth, Gen3AuthError
 
-
-### USAGE
-# client_credential = FenceClientManager(
-#         fence_url={PCDC_COMMON_BASENAME}, 
-#         client_id={FENCE_CLIENT_ID}, 
-#         client_secret={FENCE_CLIENT_SECRET})
-# client_credential.authenticate()
-# client_credential.get_auth_token()
 
 class TimeoutError(Exception):
     pass
@@ -43,13 +32,20 @@ def timeout(seconds=10, error_message=os.strerror(errno.ETIME)):
     return decorator
 
 
-
+### USAGE
+# client_credential = FenceClientManager(
+#         fence_url={PCDC_COMMON_BASENAME}, 
+#         client_id={FENCE_CLIENT_ID}, 
+#         client_secret={FENCE_CLIENT_SECRET})
+# client_credential.authenticate()
+# client_credential.get_auth_token()
 class FenceClientManager(object):
 
-    def __init__(self, base_url=None, client_id=None, client_secret=None):
+    def __init__(self, base_url=None, client_id=None, client_secret=None, timeout=2):
         self.base_url = base_url
         self.client_id = client_id
         self.client_secret = client_secret
+        self.timeout = timeout
 
         self.scopes = "openid user" #"user data openid"
         self.auth = None
@@ -69,7 +65,7 @@ class FenceClientManager(object):
 
     # @timeout(30, os.strerror(errno.ETIMEDOUT))
     @timeout(2)
-    def authenticate(self):
+    def authenticate(self, raise_exception=False):
         if self.is_valid():
             try:
                 self.auth = Gen3Auth(
@@ -80,42 +76,171 @@ class FenceClientManager(object):
             except TimeoutError:
                 # TODO send notification to 
                 print(f"TIMEOUT: Connection with client_credential to {self.base_url}/user failed.")
+                if raise_exception:
+                    raise TimeoutError("aaaa")
             except Gen3AuthError as err:
+                # TODO send notification to 
                 print(f"AUTH ERROR: {err}")
 
 
+    @timeout(2)
     def get_auth_token(self):
-        if not self.is_authenticated:
-            self.authenticate()
+        if not self.is_authenticated():
+            self.authenticate(raise_exception=True)
 
         if self.is_authenticated():
             return self.auth.get_access_token()
 
         return ""
-        # url = self.base_url + "user/oauth2/token?grant_type=client_credentials"
-        # 
-        # #url encode the value
-        # payload = "scope=" + urllib.parse.quote(self.scopes)
 
-        # auth_str = client_id + ":" + client_secret
-        # #base64 encode the credentials
-        # auth_str_bytes = auth_str.encode("ascii") 
-        # auth_base64_bytes = base64.b64encode(auth_str_bytes) 
-        # auth_base64_string = auth_base64_bytes.decode("ascii") 
+    def get_gen3_auth_instance(self):
+        return self.auth
 
-        # headers = {
-        #   'Content-Type': 'application/x-www-form-urlencoded',
-        #   'Authorization': 'Basic ' + auth_base64_string,
-        # }
 
-        # response = requests.request("POST", url, headers=headers, data=payload)
-        # if response.status_code == 200:
-        #     json_response = response.json()
-        #     return json_response["access_token"]
-        # else:
-        #     print("ERROR!")
-        #     print(response.text)
-        # return None
+
+class GuppyManager(object):
+
+    def __init__(self, base_url=None, timeout=5, access_token=None):
+        self.base_url = base_url
+        # TODO check base_url is valid
+        self.graphql_endpoint = self.base_url + "/guppy/graphql/"
+        self.download_endpoint = self.base_url + "/guppy/download/"
+        self.data_version_endpoint = self.base_url + "/guppy/_data_version"
+
+        self.access_token = access_token
+        self.timeout = timeout
+
+
+    #TODO bring the logic to build the filter / variables here.
+    def graphql_query(self, query_string, variables):
+        # query_string example "query ($filter: JSON){\n  _aggregation{\n    subject(filter: $filter, accessibility: all){\n      _totalCount\n    }\n  }\n}"
+
+        headers = {}
+        if self.access_token:
+            headers['Authorization'] = 'bearer ' + self.access_token
+
+        try:
+            response = requests.post(
+                self.graphql_endpoint,
+                json={"query": query_string, "variables": variables},
+                headers=headers,
+                timeout=self.timeout
+            )
+            response.raise_for_status()
+        except requests.exceptions.Timeout: #except requests.Timeout:
+            # Maybe set up for a retry, or continue in a retry loop
+            # TODO send notification to 
+            print(f"TIMEOUT: Connection with client_credential to {self.graphql_endpoint} failed.")
+            #TODO raise connection error instead and return the info
+            raise TimeoutError()
+        except requests.HTTPError as exception:
+            print(
+                "Error: status code {}; details:\n{}".format(
+                    response.status_code, response.text
+                )
+            )
+            raise
+
+        try:
+            return response.json()
+        except Exception:
+            print(f"Did not receive JSON: {response.text}")
+            raise
+
+
+    def download_query(self, type, fields, filters, sort, accessibility="accessible"):
+        # query_string = "{ my_index { my_field } }"
+        queryBody = { "type": type }
+        if fields:
+            queryBody["fields"] = fields
+        if filters:
+            queryBody["filter"] = filters # getGQLFilter(filter);
+        if sort:
+            queryBody["sort"] = sort 
+        if accessibility:
+            queryBody["accessibility"] = accessibility
+        # body = json.dumps(queryBody, separators=(',', ':'))
+        body = queryBody
+
+        # headers = {'Content-Type': 'application/json'}
+        headers = {}
+        if self.access_token:
+            headers['Authorization'] = 'bearer ' + self.access_token
+
+        try:
+            response = requests.post(
+                self.download_endpoint,
+                json=body,
+                headers=headers,
+                timeout=self.timeout
+            )
+            response.raise_for_status()
+        except requests.exceptions.Timeout: #except requests.Timeout:
+            # Maybe set up for a retry, or continue in a retry loop
+            # TODO send notification to 
+            print(f"TIMEOUT: Connection with client_credential to {self.download_endpoint} failed.")
+            #TODO raise connection error instead and return the info
+            raise TimeoutError()
+        except requests.HTTPError as exception:
+            print(
+                "Error: status code {}; details:\n{}".format(
+                    response.status_code, response.text
+                )
+            )
+            raise
+
+        try:
+            return response.json()
+        except Exception:
+            print(f"Did not receive JSON: {response.text}")
+            raise
+
+
+    def data_version(self):
+        headers = {}
+        if self.access_token:
+            headers['Authorization'] = 'bearer ' + self.access_token
+
+        try:
+            response = requests.get(
+                self.data_version_endpoint,
+                headers=headers,
+                timeout=self.timeout
+            )
+            response.raise_for_status()
+        except requests.exceptions.Timeout: #except requests.Timeout:
+            # Maybe set up for a retry, or continue in a retry loop
+            # TODO send notification to 
+            print(f"TIMEOUT: Connection with client_credential to {self.data_version_endpoint} failed.")
+            #TODO raise connection error instead and return the info
+            raise TimeoutError()
+        except requests.HTTPError as exception:
+            print(
+                "Error: status code {}; details:\n{}".format(
+                    response.status_code, response.text
+                )
+            )
+            raise
+
+        try:
+            # return response.json()
+            return response.text
+        except Exception:
+            print(f"Did not receive JSON: {response.text}")
+            raise
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
