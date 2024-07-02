@@ -76,7 +76,7 @@ class SignatureManager(object):
         hash = SHA256.new(payload_encoded)
         self.signature = pkcs1_15.new(self.key).sign(hash)
         hexed_signature = binascii.hexlify(self.signature)
-        return hexed_signature
+        return hexed_signature.decode()
 
 
     def is_signed(self, headers):

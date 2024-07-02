@@ -33,6 +33,27 @@ class Gen3RequestManager(object):
             return header
 
         return None
+
+
+    def make_gen3_signature(self, payload='', config=None):
+        '''
+        Validates an authorized Gen3 service request against auth_gen3_services
+        Validates a signature header for a signed request
+        returns bool if valid or not
+        '''
+        private_key = ''
+        service_name = self.get_gen3_service_header()
+        # get the signed post data
+
+        if service_name and config:
+            private_key = config.get(service_name.upper() + '_PRIVATE_KEY', None)
+
+        if not private_key:
+            raise Unauthorized(f"'{service_name}' is not configured to sign requests.")
+        
+        # key should have been loaded at app_config()
+        sm = SignatureManager(key=private_key)
+        return sm.sign(payload)
             
 
     def valid_gen3_signature(self, payload='', config=None):
@@ -53,5 +74,5 @@ class Gen3RequestManager(object):
         
         # key should have been loaded at app_config()
         sm = SignatureManager(key=public_key)
-
         return sm.verify_signature(payload=payload, headers=self.headers)
+
