@@ -100,7 +100,7 @@ class FenceClientManager(object):
 
 class GuppyManager(object):
 
-    def __init__(self, base_url=None, timeout=5, access_token=None):
+    def __init__(self, base_url=None, timeout=10, access_token=None):
         self.base_url = base_url
         # TODO check base_url is valid
         self.graphql_endpoint = self.base_url + "/guppy/graphql/"
