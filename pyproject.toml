@@ -9,7 +9,7 @@ python = ">=3.9,<4.0"
 cdiserrors = "<2.0.0"
 pycryptodome = "3.19.0"
 gen3 = "4.21.0"
-
+pytest = "^3.2.3"
 [tool.poetry.dev-dependencies]
 
 [build-system]
