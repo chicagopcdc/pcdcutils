@@ -12,3 +12,5 @@ Poetry dependency import (pyproject.toml)
 
 `pcdcutils = {git = "https://github.com/chicagopcdc/pcdcutils.git", branch = "master"}`
 
+## Local Tests
+- `pytest tests/test_utils.py`
