@@ -7,7 +7,7 @@ authors = ["Debra Venckus <dvenckus@uchicago.edu>"]
 [tool.poetry.dependencies]
 python = ">=3.9,<4.0"
 cdiserrors = "<2.0.0"
-pycryptodome = "3.19.0"
+pycryptodome = "3.21.0"
 gen3 = "4.21.0"
 
 [tool.poetry.dev-dependencies]
