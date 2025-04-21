@@ -35,26 +35,37 @@ class Gen3RequestManager(object):
         return None
 
 
-    def make_gen3_signature(self, payload='', config=None):
-        '''
+    def make_gen3_signature(self, request, config=None):
+        """
         Validates an authorized Gen3 service request against auth_gen3_services
-        Validates a signature header for a signed request
-        returns bool if valid or not
-        '''
-        private_key = ''
+        by generating the signature for a canonicalized payload.
+        """
         service_name = self.get_gen3_service_header()
+        private_key = ''
         # get the signed post data
 
         if service_name and config:
-            private_key = config.get(service_name.upper() + '_PRIVATE_KEY', None)
+            private_key = config.get(service_name.upper() + '_PRIVATE_KEY')
 
         if not private_key:
             raise Unauthorized(f"'{service_name}' is not configured to sign requests.")
-        
+
         # key should have been loaded at app_config()
         sm = SignatureManager(key=private_key)
-        return sm.sign(payload)
-            
+
+        # Canonicalize request
+        method = request.method
+        path = request.path  # if query params are needed, use request.full_path
+        body = request.get_data(as_text=True) if method in ['POST', 'PUT', 'PATCH'] else ''
+
+        canonical_payload = f"{method} {path}\nGen3-Service: {service_name}"
+        if body:
+            canonical_payload += f"\n{body}"
+
+        logger.debug(f"Canonical payload to sign:\n{canonical_payload}")
+
+        return sm.sign(canonical_payload)
+
 
     def valid_gen3_signature(self, payload='', config=None):
         '''
