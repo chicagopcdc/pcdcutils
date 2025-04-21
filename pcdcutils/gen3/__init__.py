@@ -65,7 +65,6 @@ class Gen3RequestManager(object):
             if body:
                 standardized_payload += f"\n{body}"
 
-        #logger.debug(f"Standardized payload:\n{standardized_payload}")
         return sm.sign(standardized_payload)
 
 
