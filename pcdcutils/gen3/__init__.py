@@ -35,10 +35,10 @@ class Gen3RequestManager(object):
         return None
 
 
-    def make_gen3_signature(self, request, config=None):
+    def make_gen3_signature(self, request_or_body, config=None):
         """
-        Validates an authorized Gen3 service request against auth_gen3_services
-        by generating the signature for a canonicalized payload.
+        Generate a Gen3 service signature for a standardized payload.
+        Accepts either a Flask request object or a simple body string (for testing).
         """
         service_name = self.get_gen3_service_header()
         private_key = ''
@@ -53,17 +53,19 @@ class Gen3RequestManager(object):
         # key should have been loaded at app_config()
         sm = SignatureManager(key=private_key)
 
-        # Canonicalize request
-        method = request.method
-        path = request.path  # if query params are needed, use request.full_path
-        body = request.get_data(as_text=True) if method in ['POST', 'PUT', 'PATCH'] else ''
+        if isinstance(request_or_body, str):
+            # Legacy/test mode
+            standardized_payload = request_or_body
+        else:
+            # Standardized request
+            method = request_or_body.method
+            path = request_or_body.path
+            body = request_or_body.get_data(as_text=True) if method in ['POST', 'PUT', 'PATCH'] else ''
+            standardized_payload = f"{method} {path}\nGen3-Service: {service_name}"
+            if body:
+                standardized_payload += f"\n{body}"
 
-        standardized_payload = f"{method} {path}\nGen3-Service: {service_name}"
-        if body:
-            standardized_payload += f"\n{body}"
-
-        # logger.debug(f"Canonical payload to sign:\n{standardized_payload}")
-
+        #logger.debug(f"Standardized payload:\n{standardized_payload}")
         return sm.sign(standardized_payload)
 
 
