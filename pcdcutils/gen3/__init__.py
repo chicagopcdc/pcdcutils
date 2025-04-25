@@ -60,7 +60,7 @@ class Gen3RequestManager(object):
             # For example, provide a dedicated sync version that internally calls the async one,
             # depending on the context. Or, have all instances the same.
             return asyncio.run(self._make_gen3_signature_async(payload, config))
-    
+
 
     async def _make_gen3_signature_async(self, payload='', config=None):
         """
@@ -76,6 +76,7 @@ class Gen3RequestManager(object):
         if not private_key:
             raise Unauthorized(f"'{service_name}' is not configured to sign requests.")
 
+        # key should have been loaded at app_config()
         sm = SignatureManager(key=private_key)
 
         # Legacy/test mode
@@ -124,8 +125,7 @@ class Gen3RequestManager(object):
 
         if not public_key:
             raise Unauthorized(f"'{service_name}' is not configured to send requests to this service")
-        
+
         # key should have been loaded at app_config()
         sm = SignatureManager(key=public_key)
         return sm.verify_signature(payload=payload, headers=self.headers)
-
