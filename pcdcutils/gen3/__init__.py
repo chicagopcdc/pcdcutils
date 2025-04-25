@@ -3,6 +3,12 @@
 #
 from pcdcutils.errors import Unauthorized
 from pcdcutils.signature import SignatureManager
+import asyncio
+
+import logging
+logging.basicConfig(level=logging.WARNING)
+logger = logging.getLogger(__name__)
+
 
 
 class Gen3RequestManager(object):
@@ -38,7 +44,27 @@ class Gen3RequestManager(object):
     def make_gen3_signature(self, payload='', config=None):
         """
         Generate a Gen3 service signature for a standardized payload.
-        Accepts either a Flask request object or a simple body string (for testing).
+        Accepts a FastAPI/Starlette request object or a string payload (for testing).
+        """
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+
+        if loop and loop.is_running():
+            # already in an event loop — schedule the async method and wait for it
+            return asyncio.ensure_future(self._make_gen3_signature_async(payload, config))
+        else:
+            # no event loop — safe to run directly
+            # TODO (future improvement): Consider separating the async and sync logic more cleanly.
+            # For example, provide a dedicated sync version that internally calls the async one,
+            # depending on the context. Or, have all instances the same.
+            return asyncio.run(self._make_gen3_signature_async(payload, config))
+    
+
+    async def _make_gen3_signature_async(self, payload='', config=None):
+        """
+        Actual async logic. Use this in FastAPI routes or other async contexts.
         """
         service_name = self.get_gen3_service_header()
         private_key = ''
@@ -50,17 +76,32 @@ class Gen3RequestManager(object):
         if not private_key:
             raise Unauthorized(f"'{service_name}' is not configured to sign requests.")
 
-        # key should have been loaded at app_config()
         sm = SignatureManager(key=private_key)
 
+        # Legacy/test mode
         if isinstance(payload, str):
-            # Legacy/test mode
             standardized_payload = payload
         else:
-            # Standardized request
             method = payload.method
-            path = payload.path
-            body = payload.get_data(as_text=True) if method in ['POST', 'PUT', 'PATCH'] else ''
+            body = ''
+
+            # Check url
+            try:
+                path = payload.url.path
+            except AttributeError:
+                path = getattr(payload, 'path', '/unknown')
+                # If a path url is not provided, let's log it.
+                logger.warning("Request object missing .url.path; defaulting to /unknown")
+
+            # Check method
+            if method in ['POST', 'PUT', 'PATCH']:
+                try:
+                    body = (await payload.body()).decode()
+                except AttributeError:
+                    # If not body and is post, put... then log it.
+                    logger.warning("Request object has no .body method for payload")
+
+            # Compile the payload.
             standardized_payload = f"{method} {path}\nGen3-Service: {service_name}"
             if body:
                 standardized_payload += f"\n{body}"
