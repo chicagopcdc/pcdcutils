@@ -14,3 +14,11 @@ Poetry dependency import (pyproject.toml)
 
 ## Local Tests
 - `pytest tests/test_utils.py`
+
+## Using Poetry for setting up env
+- `poetry shell`
+- `poetry install`
+- `poetry update pcdcutils`
+
+## Local Tests with Poetry
+- `poetry run pytest tests/test_utils.py`
