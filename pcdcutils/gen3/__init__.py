@@ -14,8 +14,7 @@ logger = logging.getLogger(__name__)
 class Gen3RequestManager(object):
 
     def __init__(self, headers=None):
-        if headers:
-            self.headers = headers
+        self.headers = headers or {}
 
     def is_gen3_signed(self):
         """
