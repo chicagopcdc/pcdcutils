@@ -138,6 +138,10 @@ class Gen3RequestManager(object):
 
         if service_name and config:
             private_key = getattr(config, service_name.upper() + "_PRIVATE_KEY", None)
+            # If we do not have a unique key per service, just use the rsa_private_key.
+            # TODO: Future suggestion is to create an unique key per service.
+            if not private_key:
+                private_key = getattr(config, "RSA_PRIVATE_KEY", None)
 
         if not private_key:
             raise Unauthorized(f"'{service_name}' is not configured to sign requests.")
@@ -210,15 +214,16 @@ class Gen3RequestManager(object):
         public_key = ""
 
         if service_name and config:
-            public_key = config.get(service_name.upper() + "_PUBLIC_KEY")
+            public_key = getattr(config, service_name.upper() + "_PUBLIC_KEY", None)
+            # If we do not have a unique key per service, just use the rsa_public_key.
+            # TODO: Future suggestion is to create an unique key per service.
+            if not public_key:
+                public_key = getattr(config, "RSA_PUBLIC_KEY", None)
 
         if not public_key:
             raise Unauthorized(
                 f"'{service_name}' is not configured to send payloads to this service"
             )
-
-        if config:
-            public_key = config.get(service_name.upper() + "_PUBLIC_KEY")
 
         # key should have been loaded at app_config()
         sm = SignatureManager(key=public_key)
