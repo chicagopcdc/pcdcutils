@@ -137,7 +137,7 @@ class Gen3RequestManager(object):
         private_key = ""
 
         if service_name and config:
-            private_key = config.get(service_name.upper() + "_PRIVATE_KEY")
+            private_key = getattr(config, service_name.upper() + "_PRIVATE_KEY", None)
 
         if not private_key:
             raise Unauthorized(f"'{service_name}' is not configured to sign requests.")
