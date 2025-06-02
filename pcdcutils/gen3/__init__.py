@@ -90,31 +90,11 @@ class Gen3RequestManager(object):
         """
         Create a Gen3 service signature for a standardized payload.
 
-        Takes either a FastAPI Request object (normal case) or a raw body string (test case).
-        Figures out whether to run async or sync automatically, depending on the environment.
+        For sync callers — returns a string signature.
 
-        Args:
-            payload (Request | str): The request object or raw body string to sign.
-            config (dict, optional): Service config holding the private key.
-
-        Returns:
-            str: The hex-encoded signature string.
+        Async services should call _make_gen3_signature_async() directly.
         """
-        # Check for loop running.
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            loop = None
-
-        # Determine if async or sync request
-        if loop and loop.is_running():
-            # Already inside an event loop — use async.
-            return asyncio.ensure_future(
-                self._make_gen3_signature_async(payload, config)
-            )
-        else:
-            # Use sync.
-            return asyncio.run(self._make_gen3_signature_async(payload, config))
+        return asyncio.run(self._make_gen3_signature_async(payload, config))
 
     async def _make_gen3_signature_async(self, payload="", config=None):
         """
