@@ -25,7 +25,7 @@ class SignaturePayload:
         path_only = parsed_url.path
         standardized_payload = f"{self.method} {path_only}\nGen3-Service: {service_name}"
         if self.method in ["POST", "PUT", "PATCH"] and self.body and self.body != "":
-            standardized_payload += f"\n{body}"
+            standardized_payload += f"\n{self.body}"
         return standardized_payload
 
 
@@ -137,7 +137,6 @@ class Gen3RequestManager(object):
             if not private_key:
                 private_key = config.get("RSA_PRIVATE_KEY")
 
-        logger.error(private_key)
         if not private_key:
             raise Unauthorized(f"'{service_name}' is not configured to sign requests.")
 
