@@ -80,6 +80,7 @@ class Gen3RequestManager(object):
         else:
             raise ValueError(f"Bad Request: Invalid input type for payload")
 
+        logger.error(standardized_payload)
         payload_encoded = standardized_payload.encode('utf-8')
         return payload_encoded
 
