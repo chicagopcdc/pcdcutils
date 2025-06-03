@@ -152,6 +152,9 @@ class Gen3RequestManager(object):
             standardized_payload = await self.build_standardized_payload(payload)
 
         # Sign the standardized_payload.
+        logger.info(
+            f"Service '{service_name}' signed payload of length {len(standardized_payload)} successfully."
+        )
         return sm.sign(standardized_payload)
 
     def valid_gen3_signature(self, payload, config=None):
@@ -245,4 +248,8 @@ class Gen3RequestManager(object):
             else:
                 raise
 
+        # Verified the standardized_payload.
+        logger.info(
+            f"[Gen3 Signature] Service '{service_name}' signature verified successfully."
+        )
         return True
