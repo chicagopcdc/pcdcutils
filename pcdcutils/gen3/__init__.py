@@ -131,10 +131,8 @@ class Gen3RequestManager(object):
         private_key = ""
 
 
-        logger.info("SDADSASDADDADAD")
-        logger.info(
-            config
-        )
+        logger.error("SDADSASDADDADAD")
+        logger.error(config)
         if service_name and config:
             private_key = getattr(config, service_name.upper() + "_PRIVATE_KEY", None)
             # If we do not have a unique key per service, just use the rsa_private_key.
@@ -142,6 +140,7 @@ class Gen3RequestManager(object):
             if not private_key:
                 private_key = getattr(config, "RSA_PRIVATE_KEY", None)
 
+        logger.error(private_key)
         if not private_key:
             raise Unauthorized(f"'{service_name}' is not configured to sign requests.")
 
