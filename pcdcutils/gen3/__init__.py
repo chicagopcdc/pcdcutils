@@ -130,15 +130,12 @@ class Gen3RequestManager(object):
         service_name = self.get_gen3_service_header()
         private_key = ""
 
-
-        logger.error("SDADSASDADDADAD")
-        logger.error(config)
         if service_name and config:
-            private_key = getattr(config, service_name.upper() + "_PRIVATE_KEY", None)
+            private_key = config.get(service_name.upper() + "_PRIVATE_KEY")
             # If we do not have a unique key per service, just use the rsa_private_key.
             # TODO: Future suggestion is to create an unique key per service.
             if not private_key:
-                private_key = getattr(config, "RSA_PRIVATE_KEY", None)
+                private_key = config.get("RSA_PRIVATE_KEY")
 
         logger.error(private_key)
         if not private_key:
