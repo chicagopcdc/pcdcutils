@@ -210,11 +210,11 @@ class Gen3RequestManager(object):
         public_key = ""
 
         if service_name and config:
-            public_key = getattr(config, service_name.upper() + "_PUBLIC_KEY", None)
+            public_key = config.get(service_name.upper() + "_PUBLIC_KEY")
             # If we do not have a unique key per service, just use the rsa_public_key.
             # TODO: Future suggestion is to create an unique key per service.
             if not public_key:
-                public_key = getattr(config, "RSA_PUBLIC_KEY", None)
+                public_key = config.get("RSA_PUBLIC_KEY")
 
         if not public_key:
             raise Unauthorized(
