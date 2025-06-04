@@ -4,6 +4,7 @@
 from pcdcutils.errors import Unauthorized
 from pcdcutils.signature import SignatureManager
 import asyncio
+from urllib.parse import urlparse
 
 import logging
 
@@ -11,11 +12,27 @@ logging.basicConfig(level=logging.WARNING)
 logger = logging.getLogger(__name__)
 
 
+class SignaturePayload:
+    def __init__(self, method, path, headers=None, body=None):
+        self.method = method.upper()
+        self.path = path
+        self.headers = headers or {}
+        # TODO make sure body is converted to a string format json.dumps(queryBody, separators=(",", ":"))
+        self.body = body or ""
+
+    def get_standardized_payload(self, service_name):
+        parsed_url = urlparse(self.path)
+        path_only = parsed_url.path
+        standardized_payload = f"{self.method} {path_only}\nGen3-Service: {service_name}"
+        if self.method in ["POST", "PUT", "PATCH"] and self.body and self.body != "":
+            standardized_payload += f"\n{self.body}"
+        return standardized_payload
+
+
 class Gen3RequestManager(object):
 
     def __init__(self, headers=None):
-        if headers:
-            self.headers = headers
+        self.headers = headers or {}
 
     def is_gen3_signed(self):
         """
@@ -31,14 +48,14 @@ class Gen3RequestManager(object):
         """
         Returns the contents of the Gen3-Service header or None
         """
-        header_utf8 = self.headers.get("Gen3-Service", "")
-        if header_utf8:
-            header = header_utf8  # .decode('utf-8')
+        gen3_service_header = self.headers.get("Gen3-Service", None)
+        if gen3_service_header:
+            header = gen3_service_header  # .decode('utf-8')
             return header
 
         return None
 
-    async def build_standardized_payload(self, payload):
+    def build_standardized_payload(self, payload):
         """
         Build a standardized payload string for signing or validation.
 
@@ -51,41 +68,21 @@ class Gen3RequestManager(object):
         Returns:
             str: The standardized payload to sign or verify.
         """
-        # Add the Gen3-Service header.
-        service_name = self.get_gen3_service_header()
+        standardized_payload = ""
 
-        # If payload is already a string (test or legacy mode), return it directly
         if isinstance(payload, str):
+            # If payload is already a string (test or legacy mode), return it directly
             logger.debug("build_standardized_payload received a raw string payload.")
-            return payload
+            standardized_payload = payload
+        elif isinstance(payload, SignaturePayload):
+            service_name = self.get_gen3_service_header()
+            standardized_payload = payload.get_standardized_payload(service_name)
+        else:
+            raise ValueError(f"Bad Request: Invalid input type for payload")
 
-        # Otherwise assume it's a real request object
-        try:
-            method = payload.method
-        except AttributeError:
-            method = "GET"
-            logger.warning("Payload missing .method; defaulting to GET.")
-
-        # Check for url request object.
-        try:
-            path = payload.url.path
-        except AttributeError:
-            path = getattr(payload, "path", "/unknown")
-            logger.warning("Payload missing .url.path; defaulting to /unknown.")
-
-        # Check for body request object.
-        body = ""
-        if method in ["POST", "PUT", "PATCH"]:
-            try:
-                body = (await payload.body()).decode()
-            except AttributeError:
-                logger.warning("Payload missing .body method; no body attached.")
-
-        standardized_payload = f"{method} {path}\nGen3-Service: {service_name}"
-        if body:
-            standardized_payload += f"\n{body}"
-
-        return standardized_payload
+        logger.debug(standardized_payload)
+        payload_encoded = standardized_payload.encode('utf-8')
+        return payload_encoded
 
     def make_gen3_signature(self, payload="", config=None):
         """
@@ -107,14 +104,11 @@ class Gen3RequestManager(object):
         except RuntimeError:
             loop = None
 
-        # Determine if async or sync request
         if loop and loop.is_running():
-            # Already inside an event loop — use async.
             return asyncio.ensure_future(
                 self._make_gen3_signature_async(payload, config)
             )
         else:
-            # Use sync.
             return asyncio.run(self._make_gen3_signature_async(payload, config))
 
     async def _make_gen3_signature_async(self, payload="", config=None):
@@ -139,6 +133,10 @@ class Gen3RequestManager(object):
 
         if service_name and config:
             private_key = config.get(service_name.upper() + "_PRIVATE_KEY")
+            # If we do not have a unique key per service, just use the rsa_private_key.
+            # TODO: Future suggestion is to create an unique key per service.
+            if not private_key:
+                private_key = config.get("RSA_PRIVATE_KEY")
 
         if not private_key:
             raise Unauthorized(f"'{service_name}' is not configured to sign requests.")
@@ -146,13 +144,14 @@ class Gen3RequestManager(object):
         # key should have been loaded at app_config()
         sm = SignatureManager(key=private_key)
 
-        if isinstance(payload, str):
-            standardized_payload = payload
-        else:
-            standardized_payload = await self.build_standardized_payload(payload)
+        standardized_payload = self.build_standardized_payload(payload)
 
+        signature = sm.sign(standardized_payload)
         # Sign the standardized_payload.
-        return sm.sign(standardized_payload)
+        logger.info(
+            f"Service '{service_name}' signed payload of length {len(standardized_payload)} successfully."
+        )
+        return signature
 
     def valid_gen3_signature(self, payload, config=None):
         """
@@ -211,21 +210,22 @@ class Gen3RequestManager(object):
         public_key = ""
 
         if service_name and config:
-            public_key = config.get(service_name.upper() + "_PUBLIC_KEY")
+            public_key = getattr(config, service_name.upper() + "_PUBLIC_KEY", None)
+            # If we do not have a unique key per service, just use the rsa_public_key.
+            # TODO: Future suggestion is to create an unique key per service.
+            if not public_key:
+                public_key = getattr(config, "RSA_PUBLIC_KEY", None)
 
         if not public_key:
             raise Unauthorized(
                 f"'{service_name}' is not configured to send payloads to this service"
             )
 
-        if config:
-            public_key = config.get(service_name.upper() + "_PUBLIC_KEY")
-
         # key should have been loaded at app_config()
         sm = SignatureManager(key=public_key)
 
         # Build the standardized payload
-        standardized_payload = await self.build_standardized_payload(payload)
+        standardized_payload = self.build_standardized_payload(payload)
 
         # This assumes self.headers is populated correctly
         try:
@@ -244,4 +244,8 @@ class Gen3RequestManager(object):
             else:
                 raise
 
+        # Verified the standardized_payload.
+        logger.info(
+            f"[Gen3 Signature] Service '{service_name}' signature verified successfully."
+        )
         return True
