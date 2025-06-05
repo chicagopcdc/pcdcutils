@@ -10,6 +10,7 @@ import logging
 # openssl genpkey -algorithm RSA -out PRIVATE_NAME.pem -pkeyopt rsa_keygen_bits:2048
 # openssl rsa -pubout -in PRIVATE_NAME.pem -out PUB_NAME.pem
 # To run the tests, create a keys directory in the tests folder and create key pairs private/public_key1 and 2.pem
+# poetry run pytest -s tests/test_utils.py
 
 
 def test_successful_make_sig():
@@ -258,4 +259,8 @@ def test_signature_logs_and_validation(caplog):
         "signed payload of length" in record.message for record in caplog.records
     )
 
-    print("Signature validated successfully.")
+    print("Captured log messages:")
+    for record in caplog.records:
+        print(f"  {record.levelname}: {record.message}")
+
+    print("Signature validated and expected log message found.")
