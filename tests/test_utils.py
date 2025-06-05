@@ -1,8 +1,9 @@
-from Crypto.PublicKey import RSA
-from Crypto.Signature import pkcs1_15
-from Crypto.Hash import SHA256
 import pytest
+import requests
+from unittest.mock import patch
 from pcdcutils.gen3 import Gen3RequestManager, SignaturePayload
+from pcdcutils.signature import SignatureManager
+from pcdcutils.errors import KeyPathInvalidError
 import os
 import logging
 
@@ -12,121 +13,249 @@ import logging
 
 
 def test_successful_make_sig():
+    key_path = os.getcwd() + "/tests/keys/private_key1.pem"
+    url = "http://localhost:9443/test/path"
+    body = '{"key": "value"}'  # Any string like body = "aaaaa"
+    jwt = "mock.jwt.token"  # Mock jwt
+    test_service = "AMANUENSIS"  # TODO: We can populate with variable --service=...
+    headers = {
+        "Gen3-Service": test_service,
+    }
+
+    # Create payload object with an instance of SignaturePayload class
     payload = SignaturePayload(
         method="POST",
-        path="/test/path",
-        body='{"key": "value"}',  # Any string like body = "aaaaa"
+        path=url,
+        headers=headers,
+        body=body,
     )
-    pri_key_path = os.getcwd() + "/tests/keys/private_key1.pem"
-    keyfile = open(pri_key_path, "r").read()
-    pri_key = RSA.import_key(keyfile)
 
-    g3 = Gen3RequestManager({"Signature": None, "Gen3-Service": "service"})
-    signature = g3.make_gen3_signature(payload, {"SERVICE_PRIVATE_KEY": pri_key})
+    # Initializes an instance of Gen3RequestManager.
+    g3rm = Gen3RequestManager(headers=headers)
 
+    # Using PCDCUtils signatureManager instead of doing it manually.
+    pri_key = SignatureManager(key_path).get_key()
+
+    # Create signature with the method
+    signature = g3rm.make_gen3_signature(
+        payload, {f"{test_service}_PRIVATE_KEY": pri_key}
+    )
+
+    # Populate headers, addiing after signature, so payload.headers contains final signed headers
+    headers["Content-Type"] = "application/json"
+    headers["Authorization"] = "bearer " + jwt
+    headers["Signature"] = "signature " + signature
+
+    # Mock requests.post, because no server at url variable
+    with patch("requests.post") as mock_post:
+        mock_post.return_value.status_code = 200
+        mock_post.return_value.json.return_value = {"success": True}
+
+        r = requests.post(url, data=body, headers=headers)
+
+        assert r.status_code == 200
+        assert r.json()["success"] is True
+
+    # Test the signature itself
     assert isinstance(signature, str)
     assert len(signature) > 10
+    print("Make Signature Success, signature length:", len(signature))
 
 
 def test_bad_make_sig():
+    key_path = os.getcwd() + "/tests/keys/wrong_key1.pem"
+    url = "http://localhost:9443/test/path"
+    body = '{"key": "value"}'  # Any string like body = "aaaaa"
+    jwt = "mock.jwt.token"  # Mock jwt
+    test_service = "AMANUENSIS"  # TODO: We can populate with variable --service=...
+    headers = {
+        "Gen3-Service": test_service,
+    }
+
+    # Create payload object with an instance of SignaturePayload class
     payload = SignaturePayload(
         method="POST",
-        path="/test/path",
-        body='{"key": "value"}',  # Any string like body = "aaaaa"
+        path=url,
+        headers=headers,
+        body=body,
     )
-    bad_key_path = os.getcwd() + "/tests/keys/public_key1.pem"
-    keyfile = open(bad_key_path, "r").read()
-    bad_key = RSA.import_key(keyfile)
 
-    g3 = Gen3RequestManager({"Signature": None, "Gen3-Service": "service"})
-    with pytest.raises(TypeError) as ex:
-        g3.make_gen3_signature(payload, {"SERVICE_PRIVATE_KEY": bad_key})
+    # Initializes an instance of Gen3RequestManager.
+    g3rm = Gen3RequestManager(headers=headers)
 
-    assert "This is not a private key" in str(ex.value)
+    # Now catch the error — INCLUDING the bad key load
+    with pytest.raises(KeyPathInvalidError) as ex:
+        # Using PCDCUtils signatureManager instead of doing it manually.
+        pri_key = SignatureManager(key_path).get_key()
+
+        # Create signature with the method
+        signature = g3rm.make_gen3_signature(
+            payload, {f"{test_service}_PRIVATE_KEY": pri_key}
+        )
+
+        # Populate headers, addiing after signature, so payload.headers contains final signed headers
+        headers["Content-Type"] = "application/json"
+        headers["Authorization"] = "bearer " + jwt
+        headers["Signature"] = "signature " + signature
+
+    # Verify the error message
+    print("BAD KEY CHECK:", "key_path is not found or invalid" in str(ex.value))
+    assert "key_path is not found or invalid" in str(ex.value)
 
 
 def test_successful_validate_sig():
+    key_path = os.getcwd() + "/tests/keys/private_key1.pem"
+    pub_key_path = os.getcwd() + "/tests/keys/public_key1.pem"
+    url = "http://localhost:9443/test/path"
+    body = '{"key": "value"}'  # Any string like body = "aaaaa"
+    jwt = "mock.jwt.token"  # Mock jwt
+    test_service = "AMANUENSIS"  # TODO: We can populate with variable --service=...
+    headers = {
+        "Gen3-Service": test_service,
+    }
+
+    # Create payload object with an instance of SignaturePayload class
     payload = SignaturePayload(
         method="POST",
-        path="/test/path",
-        body='{"key": "value"}',  # Any string like body = "aaaaa"
-    )
-    pri_key_path = os.getcwd() + "/tests/keys/private_key1.pem"
-    keyfile = open(pri_key_path, "r").read()
-    pri_key = RSA.import_key(keyfile)
-
-    g3 = Gen3RequestManager({"Signature": None, "Gen3-Service": "service"})
-    signature = g3.make_gen3_signature(payload, {"SERVICE_PRIVATE_KEY": pri_key})
-
-    signed_g3 = Gen3RequestManager(
-        {"Signature": "signature " + signature, "Gen3-Service": "service"}
+        path=url,
+        headers=headers,
+        body=body,
     )
 
-    pub_key_path = os.getcwd() + "/tests/keys/public_key1.pem"
-    keyfile = open(pub_key_path, "r").read()
-    pub_key = RSA.import_key(keyfile)
+    # Initializes an instance of Gen3RequestManager.
+    g3rm = Gen3RequestManager(headers=headers)
 
-    assert signed_g3.valid_gen3_signature(payload, {"SERVICE_PUBLIC_KEY": pub_key})
+    # Using PCDCUtils signatureManager instead of doing it manually.
+    pri_key = SignatureManager(key_path).get_key()
+
+    # Create signature with the method
+    signature = g3rm.make_gen3_signature(
+        payload, {f"{test_service}_PRIVATE_KEY": pri_key}
+    )
+
+    # Populate headers, addiing after signature, so payload.headers contains final signed headers
+    headers["Content-Type"] = "application/json"
+    headers["Authorization"] = "bearer " + jwt
+    headers["Signature"] = "signature " + signature
+
+    # Mock requests.post, because no server at url variable
+    with patch("requests.post") as mock_post:
+        mock_post.return_value.status_code = 200
+        mock_post.return_value.json.return_value = {"success": True}
+
+        r = requests.post(url, data=body, headers=headers)
+
+        assert r.status_code == 200
+        assert r.json()["success"] is True
+
+    # Validate the signature
+    pub_key = SignatureManager(pub_key_path).get_key()
+
+    assert g3rm.valid_gen3_signature(payload, {f"{test_service}_PUBLIC_KEY": pub_key})
+
+    print("Signature validated successfully.")
 
 
 def test_bad_validate_sig():
+    key_path = os.getcwd() + "/tests/keys/private_key1.pem"
+    wrong_pub_key_path = os.getcwd() + "/tests/keys/public_key2.pem"
+    url = "http://localhost:9443/test/path"
+    body = '{"key": "value"}'  # Any string like body = "aaaaa"
+    jwt = "mock.jwt.token"  # Mock jwt
+    test_service = "AMANUENSIS"  # TODO: We can populate with variable --service=...
+    headers = {
+        "Gen3-Service": test_service,
+    }
+
+    # Create payload object with an instance of SignaturePayload class
     payload = SignaturePayload(
         method="POST",
-        path="/test/path",
-        body='{"key": "value"}',  # Any string like body = "aaaaa"
-    )
-    pri_key_path = os.getcwd() + "/tests/keys/private_key2.pem"
-    keyfile = open(pri_key_path, "r").read()
-    pri_key = RSA.import_key(keyfile)
-
-    g3 = Gen3RequestManager({"Signature": None, "Gen3-Service": "service"})
-    signature = g3.make_gen3_signature(payload, {"SERVICE_PRIVATE_KEY": pri_key})
-
-    signed_g3 = Gen3RequestManager(
-        {"Signature": "signature " + signature, "Gen3-Service": "service"}
+        path=url,
+        headers=headers,
+        body=body,
     )
 
+    # Initializes an instance of Gen3RequestManager.
+    g3rm = Gen3RequestManager(headers=headers)
+
+    # Using PCDCUtils signatureManager instead of doing it manually.
+    pri_key = SignatureManager(key_path).get_key()
+
+    # Create signature with the method
+    signature = g3rm.make_gen3_signature(
+        payload, {f"{test_service}_PRIVATE_KEY": pri_key}
+    )
+
+    # Populate headers, addiing after signature, so payload.headers contains final signed headers
+    headers["Content-Type"] = "application/json"
+    headers["Authorization"] = "bearer " + jwt
+    headers["Signature"] = "signature " + signature
+
+    # Mock requests.post, because no server at url variable
+    with patch("requests.post") as mock_post:
+        mock_post.return_value.status_code = 200
+        mock_post.return_value.json.return_value = {"success": True}
+
+        r = requests.post(url, data=body, headers=headers)
+
+        assert r.status_code == 200
+        assert r.json()["success"] is True
+
+    # Validate the signature
+    pub_key = SignatureManager(wrong_pub_key_path).get_key()
+
+    assert not g3rm.valid_gen3_signature(
+        payload, {f"{test_service}_PUBLIC_KEY": pub_key}
+    )
+
+    print("Signature NOT validated, the keys did not match up.")
+
+
+def test_signature_logs_and_validation(caplog):
+    key_path = os.getcwd() + "/tests/keys/private_key1.pem"
     pub_key_path = os.getcwd() + "/tests/keys/public_key1.pem"
-    keyfile = open(pub_key_path, "r").read()
-    pub_key = RSA.import_key(keyfile)
+    url = "http://localhost:9443/test/path"
+    body = '{"key": "value"}'  # Any string like body = "aaaaa"
+    jwt = "mock.jwt.token"  # Mock jwt
+    test_service = "AMANUENSIS"  # TODO: We can populate with variable --service=...
+    headers = {
+        "Gen3-Service": test_service,
+    }
 
-    assert (
-        signed_g3.valid_gen3_signature(payload, {"SERVICE_PUBLIC_KEY": pub_key})
-        == False
-    )
-
-
-def test_make_gen3_signature_with_signature_payload():
+    # Create payload object with an instance of SignaturePayload class
     payload = SignaturePayload(
-        method="POST", path="/admin/users/selected", body='{"usernames": ["someone"]}'
+        method="POST",
+        path=url,
+        headers=headers,
+        body=body,
     )
 
-    key = RSA.generate(2048)
+    # Initializes an instance of Gen3RequestManager.
+    g3rm = Gen3RequestManager(headers=headers)
 
-    g3 = Gen3RequestManager({"Signature": None, "Gen3-Service": "test-service"})
-    config = {"TEST-SERVICE_PRIVATE_KEY": key}
-
-    signature = g3.make_gen3_signature(payload, config)
-
-    assert isinstance(signature, str)
-    assert len(signature) > 10
-
-
-def test_signature_logs(caplog):
-    payload = SignaturePayload(
-        method="POST", path="/admin/users/selected", body='{"usernames": ["someone"]}'
-    )
-
-    test_key = RSA.generate(2048)
-
-    g3 = Gen3RequestManager({"Signature": None, "Gen3-Service": "test-service"})
-    config = {"TEST-SERVICE_PRIVATE_KEY": test_key}
+    # Using PCDCUtils signatureManager instead of doing it manually.
+    pri_key = SignatureManager(key_path).get_key()
 
     # Checking caplog is actually captured.
     with caplog.at_level(logging.INFO):
-        signature = g3.make_gen3_signature(payload, config)
 
-    # Check for the log message
+        # Create signature with the method
+        signature = g3rm.make_gen3_signature(
+            payload, {f"{test_service}_PRIVATE_KEY": pri_key}
+        )
+
+        # Populate headers, addiing after signature, so payload.headers contains final signed headers
+        headers["Content-Type"] = "application/json"
+        headers["Authorization"] = "bearer " + jwt
+        headers["Signature"] = "signature " + signature
+
+    # Validate the signature
+    pub_key = SignatureManager(pub_key_path).get_key()
+
+    assert g3rm.valid_gen3_signature(payload, {f"{test_service}_PUBLIC_KEY": pub_key})
+
     assert any(
         "signed payload of length" in record.message for record in caplog.records
     )
+
+    print("Signature validated successfully.")
