@@ -5,6 +5,7 @@ from pcdcutils.errors import Unauthorized
 from pcdcutils.signature import SignatureManager
 import asyncio
 from urllib.parse import urlparse
+from requests.structures import CaseInsensitiveDict
 
 import logging
 
@@ -23,7 +24,9 @@ class SignaturePayload:
     def get_standardized_payload(self, service_name):
         parsed_url = urlparse(self.path)
         path_only = parsed_url.path
-        standardized_payload = f"{self.method} {path_only}\nGen3-Service: {service_name}"
+        standardized_payload = (
+            f"{self.method} {path_only}\nGen3-Service: {service_name}"
+        )
         if self.method in ["POST", "PUT", "PATCH"] and self.body and self.body != "":
             standardized_payload += f"\n{self.body}"
         return standardized_payload
@@ -32,14 +35,15 @@ class SignaturePayload:
 class Gen3RequestManager(object):
 
     def __init__(self, headers=None):
-        self.headers = headers or {}
+        # Save headers as CaseInsensitiveDict.
+        # This way, we do not worry about letter case when reading header keys.
+        self.headers = CaseInsensitiveDict(headers or {})
 
     def is_gen3_signed(self):
         """
-        Returns bool if Signature header is present
+        Returns bool (True) if both Signature and Gen3-Service headers are present.
+        CaseInsensitiveDict will handle empty headers gracefully
         """
-        if not self.headers:
-            return False
         sig_header = self.headers.get("Signature", None)
         gen3_service_header = self.headers.get("Gen3-Service", None)
         return bool(sig_header) and bool(gen3_service_header)
@@ -49,11 +53,7 @@ class Gen3RequestManager(object):
         Returns the contents of the Gen3-Service header or None
         """
         gen3_service_header = self.headers.get("Gen3-Service", None)
-        if gen3_service_header:
-            header = gen3_service_header  # .decode('utf-8')
-            return header
-
-        return None
+        return gen3_service_header
 
     def build_standardized_payload(self, payload):
         """
@@ -81,7 +81,7 @@ class Gen3RequestManager(object):
             raise ValueError(f"Bad Request: Invalid input type for payload")
 
         logger.debug(standardized_payload)
-        payload_encoded = standardized_payload.encode('utf-8')
+        payload_encoded = standardized_payload.encode("utf-8")
         return payload_encoded
 
     def make_gen3_signature(self, payload="", config=None):
