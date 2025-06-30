@@ -2,30 +2,45 @@ import errno
 import os
 
 import functools
-import json
-import requests
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
 
 from gen3.auth import Gen3Auth, Gen3AuthError
 
+import multiprocessing
+import time
 
 class TimeoutError(Exception):
     pass
 
-
-def timeout(seconds=10, error_message=os.strerror(errno.ETIME)):
+def timeout(seconds=10, error_message="Function call timed out"):
     def decorator(func):
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
-            with ThreadPoolExecutor(max_workers=1) as executor:
-                future = executor.submit(func, *args, **kwargs)
+            def target(queue, *args, **kwargs):
                 try:
-                    return future.result(timeout=seconds)
-                except FuturesTimeout:
-                    raise TimeoutError(error_message)
+                    result = func(*args, **kwargs)
+                    queue.put(('result', result))
+                except Exception as e:
+                    queue.put(('exception', e))
+
+            queue = multiprocessing.Queue()
+            process = multiprocessing.Process(target=target, args=(queue, *args), kwargs=kwargs)
+            process.start()
+            process.join(timeout=seconds)
+
+            if process.is_alive():
+                process.terminate()
+                process.join()
+                raise TimeoutError(error_message)
+
+            if not queue.empty():
+                msg_type, value = queue.get()
+                if msg_type == 'exception':
+                    raise value
+                return value
+
+            raise TimeoutError("Function did not return anything")
         return wrapper
     return decorator
-
 
 ### USAGE
 # client_credential = FenceClientManager(
