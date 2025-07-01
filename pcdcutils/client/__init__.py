@@ -1,7 +1,8 @@
 import errno
 import os
-
 import functools
+import json
+import requests
 
 from gen3.auth import Gen3Auth, Gen3AuthError
 
