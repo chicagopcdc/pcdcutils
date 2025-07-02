@@ -14,7 +14,6 @@ class TimeoutError(Exception):
 def timeout(seconds=10, error_message=os.strerror(errno.ETIME)):
     def decorator(func):
         if asyncio.iscoroutinefunction(func):
-            # Async function support
             @functools.wraps(func)
             async def async_wrapper(*args, **kwargs):
                 try:
@@ -23,10 +22,10 @@ def timeout(seconds=10, error_message=os.strerror(errno.ETIME)):
                     raise TimeoutError(error_message)
             return async_wrapper
         else:
-            # Sync function support using asyncio.to_thread
             @functools.wraps(func)
             async def sync_wrapper(*args, **kwargs):
-                try:
+                try:.3
+                    
                     return await asyncio.wait_for(
                         asyncio.to_thread(func, *args, **kwargs),
                         timeout=seconds
@@ -35,6 +34,33 @@ def timeout(seconds=10, error_message=os.strerror(errno.ETIME)):
                     raise TimeoutError(error_message)
             return sync_wrapper
     return decorator
+
+def syncify_async(async_func):
+    @functools.wraps(async_func)
+    def wrapper(*args, **kwargs):
+        import threading
+
+        result_container = {}
+
+        def run():
+            try:
+                result_container["result"] = asyncio.run(async_func(*args, **kwargs))
+            except Exception as e:
+                result_container["error"] = e
+
+        t = threading.Thread(target=run)
+        t.start()
+        t.join(timeout=15)
+
+        if t.is_alive():
+            raise TimeoutError("Function call timed out (sync wrapper)")
+
+        if "error" in result_container:
+            raise result_container["error"]
+
+        return result_container["result"]
+
+    return wrapper
 
 ### USAGE
 # client_credential = FenceClientManager(
@@ -68,8 +94,10 @@ class FenceClientManager(object):
 
 
     # @timeout(30, os.strerror(errno.ETIMEDOUT))
+    @syncify_async
     @timeout(2)
-    async def authenticate(self, raise_exception=False):
+    def authenticate(self, raise_exception=False):
+        print("INAUTHENTICATE")
         if self.is_valid():
             try:
                 self.auth = Gen3Auth(
@@ -86,11 +114,12 @@ class FenceClientManager(object):
                 # TODO send notification to 
                 print(f"AUTH ERROR: {err}")
 
-
+    @syncify_async
     @timeout(2)
-    async def get_auth_token(self):
+    def get_auth_token(self):
+        print("INGETAUTHTOKEN")
         if not self.is_authenticated():
-            await self.authenticate(raise_exception=True)
+            self.authenticate(raise_exception=True)
 
         if self.is_authenticated():
             return self.auth.get_access_token()
@@ -232,3 +261,19 @@ class GuppyManager(object):
         except Exception:
             print(f"Did not receive JSON: {response.text}")
             raise
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
