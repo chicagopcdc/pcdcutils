@@ -6,41 +6,34 @@ import requests
 
 from gen3.auth import Gen3Auth, Gen3AuthError
 
-import multiprocessing
-import time
+import asyncio
 
 class TimeoutError(Exception):
     pass
 
-def timeout(seconds=10, error_message="Function call timed out"):
+def timeout(seconds=10, error_message=os.strerror(errno.ETIME)):
     def decorator(func):
-        @functools.wraps(func)
-        def wrapper(*args, **kwargs):
-            def target(queue, *args, **kwargs):
+        if asyncio.iscoroutinefunction(func):
+            # Async function support
+            @functools.wraps(func)
+            async def async_wrapper(*args, **kwargs):
                 try:
-                    result = func(*args, **kwargs)
-                    queue.put(('result', result))
-                except Exception as e:
-                    queue.put(('exception', e))
-
-            queue = multiprocessing.Queue()
-            process = multiprocessing.Process(target=target, args=(queue, *args), kwargs=kwargs)
-            process.start()
-            process.join(timeout=seconds)
-
-            if process.is_alive():
-                process.terminate()
-                process.join()
-                raise TimeoutError(error_message)
-
-            if not queue.empty():
-                msg_type, value = queue.get()
-                if msg_type == 'exception':
-                    raise value
-                return value
-
-            raise TimeoutError("Function did not return anything")
-        return wrapper
+                    return await asyncio.wait_for(func(*args, **kwargs), timeout=seconds)
+                except asyncio.TimeoutError:
+                    raise TimeoutError(error_message)
+            return async_wrapper
+        else:
+            # Sync function support using asyncio.to_thread
+            @functools.wraps(func)
+            async def sync_wrapper(*args, **kwargs):
+                try:
+                    return await asyncio.wait_for(
+                        asyncio.to_thread(func, *args, **kwargs),
+                        timeout=seconds
+                    )
+                except asyncio.TimeoutError:
+                    raise TimeoutError(error_message)
+            return sync_wrapper
     return decorator
 
 ### USAGE
@@ -76,7 +69,7 @@ class FenceClientManager(object):
 
     # @timeout(30, os.strerror(errno.ETIMEDOUT))
     @timeout(2)
-    def authenticate(self, raise_exception=False):
+    async def authenticate(self, raise_exception=False):
         if self.is_valid():
             try:
                 self.auth = Gen3Auth(
@@ -95,9 +88,9 @@ class FenceClientManager(object):
 
 
     @timeout(2)
-    def get_auth_token(self):
+    async def get_auth_token(self):
         if not self.is_authenticated():
-            self.authenticate(raise_exception=True)
+            await self.authenticate(raise_exception=True)
 
         if self.is_authenticated():
             return self.auth.get_access_token()
@@ -239,19 +232,3 @@ class GuppyManager(object):
         except Exception:
             print(f"Did not receive JSON: {response.text}")
             raise
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
