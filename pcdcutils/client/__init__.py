@@ -5,7 +5,7 @@ import json
 import requests
 
 from gen3.auth import Gen3Auth, Gen3AuthError
-
+import threading
 import asyncio
 
 class TimeoutError(Exception):
@@ -24,8 +24,7 @@ def timeout(seconds=10, error_message=os.strerror(errno.ETIME)):
         else:
             @functools.wraps(func)
             async def sync_wrapper(*args, **kwargs):
-                try:.3
-                    
+                try:
                     return await asyncio.wait_for(
                         asyncio.to_thread(func, *args, **kwargs),
                         timeout=seconds
@@ -38,8 +37,6 @@ def timeout(seconds=10, error_message=os.strerror(errno.ETIME)):
 def syncify_async(async_func):
     @functools.wraps(async_func)
     def wrapper(*args, **kwargs):
-        import threading
-
         result_container = {}
 
         def run():
