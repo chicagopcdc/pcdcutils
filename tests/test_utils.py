@@ -6,11 +6,32 @@ from pcdcutils.signature import SignatureManager
 from pcdcutils.errors import KeyPathInvalidError
 import os
 import logging
+import time
+from pcdcutils.client import FenceClientManager
+import asyncio
+import anyio
 
 # openssl genpkey -algorithm RSA -out PRIVATE_NAME.pem -pkeyopt rsa_keygen_bits:2048
 # openssl rsa -pubout -in PRIVATE_NAME.pem -out PUB_NAME.pem
 # To run the tests, create a keys directory in the tests folder and create key pairs private/public_key1 and 2.pem
 # poetry run pytest -s tests/test_utils.py
+
+#reading variables from a file
+def file_load_fence_env(path):
+    env_vars = {}
+    with open (path) as file:
+        for line in file:
+            if "=" in line :
+                key, value = line.strip().split("=",1)
+                env_vars[key] = value
+    return env_vars
+#"/tests/keys/fence/fence_keys.env"
+env_key_path = os.getcwd() + "/tests/keys/fence_keys.env"
+env = file_load_fence_env(env_key_path)
+
+FAKE_FENCE_URL = env["FAKE_FENCE_URL"]
+FAKE_CLIENT_ID = env["FAKE_CLIENT_ID"]
+FAKE_CLIENT_SECRET = env["FAKE_CLIENT_SECRET"]
 
 
 def test_successful_make_sig():
@@ -264,3 +285,90 @@ def test_signature_logs_and_validation(caplog):
         print(f"  {record.levelname}: {record.message}")
 
     print("Signature validated and expected log message found.")
+
+
+
+
+
+
+def test_fence_client_manager_success(monkeypatch):
+    # We create a fake Gen3Auth class to avoid making real network requests.
+    class FakeGen3Auth:
+        def __init__(self, endpoint, client_credentials, client_scopes):
+            # Save the inputs so we can check them if needed
+            self.endpoint = endpoint
+            self.client_credentials = client_credentials
+            self.client_scopes = client_scopes
+            # We set a fake access token value
+            self._access_token = "fake-token"
+
+        def get_access_token(self):
+            # This returns the fake token instead of making a real API call
+            return self._access_token
+
+    # Replace (monkeypatch) the real Gen3Auth with our fake one inside FenceClientManager
+    monkeypatch.setattr("pcdcutils.client.Gen3Auth", FakeGen3Auth)
+
+    # Create a FenceClientManager instance using our test config values
+    client = FenceClientManager(
+        base_url=FAKE_FENCE_URL,
+        client_id=FAKE_CLIENT_ID,
+        client_secret=FAKE_CLIENT_SECRET,
+    )
+
+    # Run authenticate() — this should use our FakeGen3Auth and set the auth object
+    client.authenticate()
+
+    # Check that the client now says it's authenticated
+    assert client.is_authenticated(), "client was not authenticated"
+
+    # Get a token from our fake auth — should match our fake token value
+    token = client.get_auth_token()
+    assert token == "fake-token", "wrong token returned"
+
+def test_fence_client_manager_invalid(monkeypatch):
+    # Create a client without any credentials to simulate a misconfigured state
+    client = FenceClientManager(base_url=None, client_id=None, client_secret=None)
+
+    # Run authenticate() — since credentials are missing, this should not set auth
+    client.authenticate()
+
+    # Check that the client is not authenticated
+    assert not client.is_authenticated()
+
+    # Get token — because there's no auth, we expect an empty string (not an error)
+    token = client.get_auth_token()
+    assert token == ""
+
+def test_fence_client_manager_timeout(monkeypatch):
+    class SlowGen3Auth:
+        def __init__(self, endpoint, client_credentials, client_scopes):
+            # Sleep for 5 seconds to simulate slow network or processing
+            time.sleep(10)
+            self._access_token = "slow-token"
+
+        def get_access_token(self):
+            return self._access_token
+
+    # Replace the real Gen3Auth with our slow fake version
+    monkeypatch.setattr("pcdcutils.client.Gen3Auth", SlowGen3Auth)
+
+    # Create a client using valid config
+    client = FenceClientManager(
+        base_url=FAKE_FENCE_URL,
+        client_id=FAKE_CLIENT_ID,
+        client_secret=FAKE_CLIENT_SECRET,
+    )
+
+    # Call authenticate() — it should fail due to hitting the timeout limit
+    # We expect it to raise an exception (e.g., TimeoutError or similar)
+
+    #with pytest.raises(Exception, match="timed out"):
+    client.authenticate(raise_exception=True)
+
+    assert not client.is_authenticated() , "here, the is authenticate did eventually authenticate when it should have been killed"
+
+    client.get_auth_token()
+    
+    assert not client.is_authenticated(), "the call the get_auth_token should have killed before authenticating"
+

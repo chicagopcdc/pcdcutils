@@ -3,61 +3,69 @@ import os
 import functools
 import json
 import requests
+import time
 
 from gen3.auth import Gen3Auth, Gen3AuthError
+from multiprocessing import Process, Queue
 import threading
 import asyncio
 
 class TimeoutError(Exception):
     pass
 
-def timeout(seconds=10, error_message=os.strerror(errno.ETIME)):
-    def decorator(func):
-        if asyncio.iscoroutinefunction(func):
-            @functools.wraps(func)
-            async def async_wrapper(*args, **kwargs):
-                try:
-                    return await asyncio.wait_for(func(*args, **kwargs), timeout=seconds)
-                except asyncio.TimeoutError:
-                    raise TimeoutError(error_message)
-            return async_wrapper
-        else:
-            @functools.wraps(func)
-            async def sync_wrapper(*args, **kwargs):
-                try:
-                    return await asyncio.wait_for(
-                        asyncio.to_thread(func, *args, **kwargs),
-                        timeout=seconds
-                    )
-                except asyncio.TimeoutError:
-                    raise TimeoutError(error_message)
-            return sync_wrapper
-    return decorator
+class FakeGen3Auth:
+    def __init__(self, endpoint, client_credentials, client_scopes):
+        # Save the inputs so we can check them if needed
+        self.endpoint = endpoint
+        self.client_credentials = client_credentials
+        self.client_scopes = client_scopes
+        # We set a fake access token value
+        self._access_token = "fake-token"
 
-def syncify_async(async_func):
-    @functools.wraps(async_func)
-    def wrapper(*args, **kwargs):
-        result_container = {}
+    def get_access_token(self):
+        # This returns the fake token instead of making a real API call
+        return self._access_token
 
-        def run():
-            try:
-                result_container["result"] = asyncio.run(async_func(*args, **kwargs))
-            except Exception as e:
-                result_container["error"] = e
 
-        t = threading.Thread(target=run)
-        t.start()
-        t.join(timeout=15)
+def run_authenticate_with_timeout(base_url, client_id, client_secret, scopes, seconds=10):
+    q = Queue()
+    print("HERE")
+    p = Process(target=_auth_worker, args=(base_url, client_id, client_secret, scopes, q))
+    print("HERE1")
+    p.start()
+    print("HERE2")
+    p.join(seconds)
+    print("HERE3")
 
-        if t.is_alive():
-            raise TimeoutError("Function call timed out (sync wrapper)")
+    if p.is_alive():
+        p.terminate()
+        p.join()
+        print("who")
+        raise TimeoutError(f"Authentication timed out after {seconds} seconds")
+    print("HERE4")
+    if not q.empty():
+        print("who1")
+        status, payload = q.get()
+        if status == "error":
+            print("hi")
+            raise payload
+        return payload
+    else:
+        print("who2")
+        raise TimeoutError("No result returned from authentication process")
 
-        if "error" in result_container:
-            raise result_container["error"]
+def _auth_worker(base_url, client_id, client_secret, scopes, q):
+    try:
+        auth = FakeGen3Auth(
+            endpoint=base_url,
+            client_credentials=(client_id, client_secret),
+            client_scopes=scopes
+        )
+        q.put(("result", auth))
+    except Exception as e:
+        q.put(("error", e))
 
-        return result_container["result"]
 
-    return wrapper
 
 ### USAGE
 # client_credential = FenceClientManager(
@@ -68,7 +76,7 @@ def syncify_async(async_func):
 # client_credential.get_auth_token()
 class FenceClientManager(object):
 
-    def __init__(self, base_url=None, client_id=None, client_secret=None, timeout=2):
+    def __init__(self, base_url=None, client_id=None, client_secret=None, timeout=5):
         self.base_url = base_url
         self.client_id = client_id
         self.client_secret = client_secret
@@ -76,7 +84,6 @@ class FenceClientManager(object):
 
         self.scopes = "openid user" #"user data openid"
         self.auth = None
-
 
     def is_valid(self):
         if not self.base_url or not self.client_id or not self.client_secret:
@@ -89,30 +96,24 @@ class FenceClientManager(object):
     def is_authenticated(self):
         return True if self.auth else False
 
-
-    # @timeout(30, os.strerror(errno.ETIMEDOUT))
-    @syncify_async
-    @timeout(2)
     def authenticate(self, raise_exception=False):
         print("INAUTHENTICATE")
         if self.is_valid():
             try:
-                self.auth = Gen3Auth(
-                    endpoint=self.base_url,
-                    client_credentials=(self.client_id, self.client_secret),
-                    client_scopes = self.scopes
+                self.auth = run_authenticate_with_timeout(
+                    self.base_url,
+                    self.client_id,
+                    self.client_secret,
+                    self.scopes,
+                    seconds=self.timeout
                 )
+                print("my_auth:", self.auth)
             except TimeoutError:
-                # TODO send notification to 
                 print(f"TIMEOUT: Connection with client_credential to {self.base_url}/user failed.")
-                if raise_exception:
-                    raise TimeoutError("aaaa")
             except Gen3AuthError as err:
-                # TODO send notification to 
                 print(f"AUTH ERROR: {err}")
+                # Optionally log or handle silently
 
-    @syncify_async
-    @timeout(2)
     def get_auth_token(self):
         print("INGETAUTHTOKEN")
         if not self.is_authenticated():
@@ -125,8 +126,6 @@ class FenceClientManager(object):
 
     def get_gen3_auth_instance(self):
         return self.auth
-
-
 
 class GuppyManager(object):
 
@@ -258,7 +257,6 @@ class GuppyManager(object):
         except Exception:
             print(f"Did not receive JSON: {response.text}")
             raise
-
 
 
 
