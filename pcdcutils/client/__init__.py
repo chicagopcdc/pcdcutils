@@ -13,6 +13,20 @@ class TimeoutError(Exception):
 
 
 def timeout(seconds=10, error_message=os.strerror(errno.ETIME)):
+"""
+The `signal` module is the best option for enforcing a timeout on `Gen3Auth`,
+despite being limited to Unix-like systems and the main thread.
+
+Other approaches like `asyncio` don't work here because `Gen3Auth` may block
+indefinitely without yielding to the event loop, making `asyncio.wait_for`
+ineffective. The function keeps running in the background even after a timeout.
+
+Thread-based solutions (`threading`, `ThreadPoolExecutor`) have the same issue:
+Python doesn't allow killing threads externally, so a stuck thread can’t be stopped.
+
+While `multiprocessing` allows killing a blocking call by isolating it in a
+separate process, the overhead is excessive and unnecessary for this use case.
+"""
     def decorator(func):
         def _handle_timeout(signum, frame):
             raise TimeoutError(error_message)
