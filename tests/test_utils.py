@@ -287,27 +287,9 @@ def test_signature_logs_and_validation(caplog):
     print("Signature validated and expected log message found.")
 
 
-
-
-
-
 def test_fence_client_manager_success(monkeypatch):
-    # We create a fake Gen3Auth class to avoid making real network requests.
-    class FakeGen3Auth:
-        def __init__(self, endpoint, client_credentials, client_scopes):
-            # Save the inputs so we can check them if needed
-            self.endpoint = endpoint
-            self.client_credentials = client_credentials
-            self.client_scopes = client_scopes
-            # We set a fake access token value
-            self._access_token = "fake-token"
-
-        def get_access_token(self):
-            # This returns the fake token instead of making a real API call
-            return self._access_token
-
-    # Replace (monkeypatch) the real Gen3Auth with our fake one inside FenceClientManager
-    monkeypatch.setattr("pcdcutils.client.Gen3Auth", FakeGen3Auth)
+    #unable to use patching because of multiprocessing
+    #go to _auth_work and change Gen3Auth to FakeGen3Auth to test
 
     # Create a FenceClientManager instance using our test config values
     client = FenceClientManager(
@@ -326,6 +308,7 @@ def test_fence_client_manager_success(monkeypatch):
     token = client.get_auth_token()
     assert token == "fake-token", "wrong token returned"
 
+
 def test_fence_client_manager_invalid(monkeypatch):
     # Create a client without any credentials to simulate a misconfigured state
     client = FenceClientManager(base_url=None, client_id=None, client_secret=None)
@@ -340,18 +323,11 @@ def test_fence_client_manager_invalid(monkeypatch):
     token = client.get_auth_token()
     assert token == ""
 
+
 def test_fence_client_manager_timeout(monkeypatch):
-    class SlowGen3Auth:
-        def __init__(self, endpoint, client_credentials, client_scopes):
-            # Sleep for 5 seconds to simulate slow network or processing
-            time.sleep(10)
-            self._access_token = "slow-token"
+    #go to _auth_work and change Gen3Auth to FakeGen3Auth to test
+    #add time.sleep(10)
 
-        def get_access_token(self):
-            return self._access_token
-
-    # Replace the real Gen3Auth with our slow fake version
-    monkeypatch.setattr("pcdcutils.client.Gen3Auth", SlowGen3Auth)
 
     # Create a client using valid config
     client = FenceClientManager(
@@ -363,7 +339,6 @@ def test_fence_client_manager_timeout(monkeypatch):
     # Call authenticate() — it should fail due to hitting the timeout limit
     # We expect it to raise an exception (e.g., TimeoutError or similar)
 
-    #with pytest.raises(Exception, match="timed out"):
     client.authenticate(raise_exception=True)
 
     assert not client.is_authenticated() , "here, the is authenticate did eventually authenticate when it should have been killed"

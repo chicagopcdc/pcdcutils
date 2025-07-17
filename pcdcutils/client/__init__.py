@@ -14,7 +14,7 @@ class TimeoutError(Exception):
     pass
 
 class FakeGen3Auth:
-    def __init__(self, endpoint, client_credentials, client_scopes):
+    def __init__(self, endpoint, client_credentials, client_scopes, success=False):
         # Save the inputs so we can check them if needed
         self.endpoint = endpoint
         self.client_credentials = client_credentials
@@ -56,11 +56,15 @@ def run_authenticate_with_timeout(base_url, client_id, client_secret, scopes, se
 
 def _auth_worker(base_url, client_id, client_secret, scopes, q):
     try:
-        auth = FakeGen3Auth(
+        #change to FakeGen3Auth for testing test_fence_client_manager_timeout && success
+        auth = Gen3Auth(
             endpoint=base_url,
             client_credentials=(client_id, client_secret),
-            client_scopes=scopes
+            client_scopes=scopes,
         )
+        #add time.sleep(10) for test_fence_client_manager_timeout
+        #time.sleep(10)
+
         q.put(("result", auth))
     except Exception as e:
         q.put(("error", e))
