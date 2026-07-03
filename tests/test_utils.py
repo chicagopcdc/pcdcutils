@@ -4,6 +4,8 @@ from unittest.mock import patch
 from pcdcutils.gen3 import Gen3RequestManager, SignaturePayload
 from pcdcutils.signature import SignatureManager
 from pcdcutils.errors import KeyPathInvalidError
+from pcdcutils.client import timeout, TimeoutError
+import time
 import os
 import logging
 
@@ -264,3 +266,18 @@ def test_signature_logs_and_validation(caplog):
         print(f"  {record.levelname}: {record.message}")
 
     print("Signature validated and expected log message found.")
+
+
+def test_timeout_completes_normally():
+    @timeout(1)
+    def fast():
+        return "ok"
+    assert fast() == "ok"
+
+def test_timeout_raises_on_slow_call():
+    @timeout(1)
+    def slow():
+        time.sleep(2)
+        return "too slow"
+    with pytest.raises(TimeoutError):
+        slow()

@@ -1,6 +1,5 @@
 import errno
 import os
-import signal
 import functools
 import json
 import requests
@@ -16,31 +15,39 @@ class TimeoutError(Exception):
 
 def timeout(seconds=10, error_message=os.strerror(errno.ETIME)):
     """
-    The `signal` module is the best option for enforcing a timeout on `Gen3Auth`,
-    despite being limited to Unix-like systems and the main thread.
-    
-    Other approaches like `asyncio` don't work here because `Gen3Auth` may block
-    indefinitely without yielding to the event loop, making `asyncio.wait_for`
-    ineffective. The function keeps running in the background even after a timeout.
-    
-    Thread-based solutions (`threading`, `ThreadPoolExecutor`) have the same issue:
-    Python doesn't allow killing threads externally, so a stuck thread can’t be stopped.
-    
-    While `multiprocessing` allows killing a blocking call by isolating it in a
-    separate process, the overhead is excessive and unnecessary for this use case.
+    Enforces a timeout on `Gen3Auth` calls using a single-worker
+    `ThreadPoolExecutor`, so it works cross-platform (unlike `SIGALRM`,
+    which is Unix-only and only fires on the main thread) and from
+    within Celery workers or other background threads.
+
+    Other approaches like `asyncio` don't work here because `Gen3Auth`
+    may block indefinitely without yielding to the event loop, making
+    `asyncio.wait_for` ineffective.
+
+    Note: Python cannot forcibly kill a running thread. If `func` is
+    still blocked when `seconds` elapses, `TimeoutError` is raised to
+    the caller immediately, but the underlying worker thread is
+    detached and keeps running in the background until it finishes
+    (or forever, if it's truly stuck) rather than being terminated.
+    This is a real tradeoff, not a bug -- see `multiprocessing` if you
+    need to hard-kill a hung call, though the overhead is usually not
+    worth it for this use case.
     """
     def decorator(func):
+        # One executor per decorated function (not per call) to avoid
+        # thread-creation overhead on hot paths like get_auth_token().
+        executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
-            executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
             future = executor.submit(func, *args, **kwargs)
             try:
                 return future.result(timeout=seconds)
             except concurrent.futures.TimeoutError:
+                # Does not stop the underlying thread (see docstring);
+                # it just stops waiting on it.
                 future.cancel()
                 raise TimeoutError(error_message)
-            finally:
-                executor.shutdown(wait=False)
 
         return wrapper
 
